@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>音ゲー</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #eee; user-select: none; }
+  h1 { margin-bottom: 8px; font-size: 1.5rem; letter-spacing: 2px; }
+  #stats { display: flex; gap: 24px; margin-bottom: 12px; font-size: 1rem; }
+  #stats span { color: #4ecca3; font-weight: bold; }
+  #stage { position: relative; width: 400px; height: 480px; background: #0f0f23; border: 2px solid #4ecca3; border-radius: 6px; overflow: hidden; }
+  .lane { position: absolute; top: 0; bottom: 0; width: 90px; border-right: 1px solid #2a2a4a; }
+  .lane:last-child { border-right: none; }
+  #lane0 { left: 0; } #lane1 { left: 100px; } #lane2 { left: 200px; } #lane3 { left: 300px; }
+  .hit-zone { position: absolute; bottom: 50px; left: 0; right: 0; height: 14px; background: rgba(78,204,163,0.15); border: 1px solid rgba(78,204,163,0.4); }
+  .key-btn { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 60px; height: 36px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: bold; background: #2a2a4a; border: 2px solid #4ecca3; color: #4ecca3; transition: background 0.05s; }
+  .key-btn.active { background: #4ecca3; color: #1a1a2e; }
+  .note { position: absolute; width: 70px; height: 18px; border-radius: 4px; left: 10px; }
+  #judge { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 1.5rem; font-weight: bold; opacity: 0; transition: opacity 0.1s; pointer-events: none; }
+  #message { margin-top: 14px; color: #4ecca3; height: 1.5em; font-size: 1rem; }
+  #start-btn { margin-top: 10px; padding: 8px 24px; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>RHYTHM</h1>
+<div id="stats">スコア: <span id="score">0</span> &nbsp;|&nbsp; コンボ: <span id="combo">0</span> &nbsp;|&nbsp; 最大コンボ: <span id="maxcombo">0</span></div>
+<div id="stage">
+  <div class="lane" id="lane0"><div class="hit-zone"></div><div class="key-btn" id="btn0">D</div></div>
+  <div class="lane" id="lane1"><div class="hit-zone"></div><div class="key-btn" id="btn1">F</div></div>
+  <div class="lane" id="lane2"><div class="hit-zone"></div><div class="key-btn" id="btn2">J</div></div>
+  <div class="lane" id="lane3"><div class="hit-zone"></div><div class="key-btn" id="btn3">K</div></div>
+  <div id="judge"></div>
+</div>
+<div id="message">D / F / J / K キーで叩く</div>
+<button id="start-btn" onclick="startGame()">スタート</button>
+
+<script>
+const KEYS = ['d','f','j','k'];
+const COLORS = ['#ff6b6b','#ffd93d','#4d96ff','#6bcb77'];
+const HIT_Y = 480 - 50 - 7;
+const NOTE_SPEED = 3;
+const PERFECT_RANGE = 30, GOOD_RANGE = 60;
+
+let notes, score, combo, maxCombo, running, animId, spawnTimer, beatInterval, ctx;
+const stage = document.getElementById('stage');
+
+function startGame() {
+  document.getElementById('start-btn').style.display = 'none';
+  notes = []; score = 0; combo = 0; maxCombo = 0; running = true;
+  document.getElementById('score').textContent = 0;
+  document.getElementById('combo').textContent = 0;
+  document.getElementById('maxcombo').textContent = 0;
+  document.getElementById('message').textContent = 'D / F / J / K キーで叩く';
+
+  stage.querySelectorAll('.note').forEach(n => n.remove());
+
+  let elapsed = 0;
+  const pattern = generatePattern(60);
+  let pi = 0;
+
+  function spawnLoop() {
+    if (!running) return;
+    if (pi < pattern.length) {
+      const now = performance.now();
+      if (pi === 0) spawnTimer = now;
+      const target = spawnTimer + pattern[pi].time * 1000;
+      if (now >= target) {
+        spawnNote(pattern[pi].lane);
+        pi++;
+      }
+    }
+    requestAnimationFrame(spawnLoop);
+  }
+
+  if (animId) cancelAnimationFrame(animId);
+  animId = requestAnimationFrame(gameLoop);
+  spawnLoop();
+
+  setTimeout(() => {
+    running = false;
+    document.getElementById('message').textContent = `終了！スコア: ${score} / 最大コンボ: ${maxCombo}`;
+    document.getElementById('start-btn').textContent = 'もう一度';
+    document.getElementById('start-btn').style.display = 'inline-block';
+  }, 62000);
+}
+
+function generatePattern(seconds) {
+  const bpm = 120, beat = 60/bpm;
+  const pattern = [];
+  for (let t = 1; t < seconds; t += beat/2) {
+    if (Math.random() < 0.7) {
+      pattern.push({ time: t + Math.random()*0.05, lane: Math.floor(Math.random()*4) });
+      if (Math.random() < 0.3) {
+        let l2; do { l2 = Math.floor(Math.random()*4); } while (l2 === pattern[pattern.length-1].lane);
+        pattern.push({ time: t + Math.random()*0.05, lane: l2 });
+      }
+    }
+  }
+  return pattern.sort((a,b) => a.time - b.time);
+}
+
+function spawnNote(lane) {
+  const el = document.createElement('div');
+  el.className = 'note';
+  el.style.background = COLORS[lane];
+  el.style.top = '-18px';
+  el.dataset.lane = lane;
+  el.dataset.y = -18;
+  document.getElementById('lane' + lane).appendChild(el);
+}
+
+function gameLoop() {
+  if (!running) return;
+  stage.querySelectorAll('.note').forEach(note => {
+    let y = parseFloat(note.dataset.y) + NOTE_SPEED;
+    note.dataset.y = y;
+    note.style.top = y + 'px';
+    if (y > 480) {
+      miss();
+      note.remove();
+    }
+  });
+  animId = requestAnimationFrame(gameLoop);
+}
+
+function hitLane(lane) {
+  document.getElementById('btn' + lane).classList.add('active');
+  setTimeout(() => document.getElementById('btn' + lane).classList.remove('active'), 100);
+
+  const laneEl = document.getElementById('lane' + lane);
+  const noteEls = [...laneEl.querySelectorAll('.note')];
+  if (!noteEls.length) return;
+
+  const note = noteEls[0];
+  const y = parseFloat(note.dataset.y);
+  const noteCenter = y + 9;
+  const dist = Math.abs(noteCenter - HIT_Y);
+
+  if (dist <= PERFECT_RANGE) {
+    note.remove(); addScore(300, 'PERFECT!', '#4ecca3');
+  } else if (dist <= GOOD_RANGE) {
+    note.remove(); addScore(100, 'GOOD', '#ffd93d');
+  }
+}
+
+function addScore(pts, label, color) {
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  score += pts * Math.max(1, Math.floor(combo / 10));
+  document.getElementById('score').textContent = score;
+  document.getElementById('combo').textContent = combo;
+  document.getElementById('maxcombo').textContent = maxCombo;
+  showJudge(label, color);
+}
+
+function miss() {
+  combo = 0;
+  document.getElementById('combo').textContent = 0;
+  showJudge('MISS', '#ff6b6b');
+}
+
+function showJudge(text, color) {
+  const el = document.getElementById('judge');
+  el.textContent = text;
+  el.style.color = color;
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = 0, 400);
+}
+
+document.addEventListener('keydown', e => {
+  const idx = KEYS.indexOf(e.key.toLowerCase());
+  if (idx !== -1) hitLane(idx);
+});
+</script>
+</body>
+</html>
