@@ -1,1 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スネークゲーム</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: sans-serif;
+    color: #eee;
+  }
+  h1 { margin-bottom: 10px; font-size: 1.5rem; letter-spacing: 2px; }
+  #score { margin-bottom: 12px; font-size: 1.1rem; }
+  canvas {
+    border: 2px solid #4ecca3;
+    border-radius: 4px;
+    background: #0f0f23;
+  }
+  #message {
+    margin-top: 14px;
+    font-size: 1rem;
+    color: #4ecca3;
+    height: 1.5em;
+  }
+  #restart {
+    display: none;
+    margin-top: 10px;
+    padding: 8px 24px;
+    background: #4ecca3;
+    color: #1a1a2e;
+    border: none;
+    border-radius: 4px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  #restart:hover { background: #38b48b; }
+</style>
+</head>
+<body>
+<h1>SNAKE</h1>
+<div id="score">スコア: 0</div>
+<canvas id="canvas" width="400" height="400"></canvas>
+<div id="message">矢印キーで操作</div>
+<button id="restart">もう一度</button>
 
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const messageEl = document.getElementById('message');
+const restartBtn = document.getElementById('restart');
+
+const GRID = 20;
+const COLS = canvas.width / GRID;
+const ROWS = canvas.height / GRID;
+
+let snake, dir, nextDir, food, score, gameOver, intervalId;
+
+function init() {
+  snake = [
+    { x: 10, y: 10 },
+    { x: 9,  y: 10 },
+    { x: 8,  y: 10 },
+  ];
+  dir = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+  score = 0;
+  gameOver = false;
+  scoreEl.textContent = 'スコア: 0';
+  messageEl.textContent = '矢印キーで操作';
+  restartBtn.style.display = 'none';
+  placeFood();
+  if (intervalId) clearInterval(intervalId);
+  intervalId = setInterval(update, 120);
+}
+
+function placeFood() {
+  let pos;
+  do {
+    pos = {
+      x: Math.floor(Math.random() * COLS),
+      y: Math.floor(Math.random() * ROWS),
+    };
+  } while (snake.some(s => s.x === pos.x && s.y === pos.y));
+  food = pos;
+}
+
+function update() {
+  dir = nextDir;
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  // 壁衝突
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
+    end(); return;
+  }
+  // 自分衝突
+  if (snake.some(s => s.x === head.x && s.y === head.y)) {
+    end(); return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score++;
+    scoreEl.textContent = `スコア: ${score}`;
+    placeFood();
+  } else {
+    snake.pop();
+  }
+
+  draw();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // 食べ物
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.arc(
+    food.x * GRID + GRID / 2,
+    food.y * GRID + GRID / 2,
+    GRID / 2 - 2, 0, Math.PI * 2
+  );
+  ctx.fill();
+
+  // スネーク
+  snake.forEach((seg, i) => {
+    const ratio = 1 - i / snake.length * 0.6;
+    ctx.fillStyle = `rgba(78, 204, 163, ${ratio})`;
+    ctx.fillRect(seg.x * GRID + 1, seg.y * GRID + 1, GRID - 2, GRID - 2);
+  });
+
+  // 目
+  const head = snake[0];
+  ctx.fillStyle = '#1a1a2e';
+  const eyeOffsets = dir.x !== 0
+    ? [{ x: 3, y: 4 }, { x: 3, y: 12 }]
+    : [{ x: 4, y: 3 }, { x: 12, y: 3 }];
+  eyeOffsets.forEach(o => {
+    ctx.beginPath();
+    ctx.arc(
+      head.x * GRID + (dir.x === 1 ? GRID - o.x : o.x),
+      head.y * GRID + (dir.y === 1 ? GRID - o.y : o.y),
+      2, 0, Math.PI * 2
+    );
+    ctx.fill();
+  });
+}
+
+function end() {
+  clearInterval(intervalId);
+  gameOver = true;
+  messageEl.textContent = 'ゲームオーバー！';
+  restartBtn.style.display = 'inline-block';
+}
+
+document.addEventListener('keydown', e => {
+  const keys = {
+    ArrowUp:    { x: 0,  y: -1 },
+    ArrowDown:  { x: 0,  y:  1 },
+    ArrowLeft:  { x: -1, y:  0 },
+    ArrowRight: { x: 1,  y:  0 },
+  };
+  const d = keys[e.key];
+  if (!d) return;
+  // 逆方向は無視
+  if (d.x === -dir.x && d.y === -dir.y) return;
+  nextDir = d;
+  e.preventDefault();
+});
+
+restartBtn.addEventListener('click', init);
+
+init();
+</script>
+</body>
+</html>
