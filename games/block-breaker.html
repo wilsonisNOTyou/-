@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ブロック崩し</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; color: #eee; }
+  h1 { margin-bottom: 10px; font-size: 1.5rem; letter-spacing: 2px; }
+  #score { margin-bottom: 10px; font-size: 1.1rem; }
+  canvas { border: 2px solid #4ecca3; border-radius: 4px; background: #0f0f23; }
+  #message { margin-top: 14px; font-size: 1rem; color: #4ecca3; height: 1.5em; }
+  #restart { display: none; margin-top: 10px; padding: 8px 24px; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>BLOCK BREAKER</h1>
+<div id="score">スコア: 0</div>
+<canvas id="canvas" width="400" height="500"></canvas>
+<div id="message">マウスまたは矢印キーでパドルを動かす</div>
+<button id="restart" onclick="init()">もう一度</button>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const messageEl = document.getElementById('message');
+const restartBtn = document.getElementById('restart');
+
+const PW = 80, PH = 10, BR = 8;
+const COLS = 8, ROWS = 5;
+const BW = 40, BH = 16, BPAD = 4;
+const BOFFX = (400 - COLS*(BW+BPAD)+BPAD)/2;
+const BOFFY = 50;
+
+let paddle, ball, blocks, score, running, animId;
+
+const COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff','#ff9f43'];
+
+function init() {
+  paddle = { x: 160, y: 470, w: PW };
+  ball = { x: 200, y: 440, r: BR, vx: 3, vy: -4 };
+  blocks = [];
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      blocks.push({ x: BOFFX + c*(BW+BPAD), y: BOFFY + r*(BH+BPAD), alive: true, color: COLORS[r] });
+  score = 0;
+  running = true;
+  scoreEl.textContent = 'スコア: 0';
+  messageEl.textContent = 'マウスまたは矢印キーでパドルを動かす';
+  restartBtn.style.display = 'none';
+  if (animId) cancelAnimationFrame(animId);
+  loop();
+}
+
+function loop() {
+  update();
+  draw();
+  if (running) animId = requestAnimationFrame(loop);
+}
+
+function update() {
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  if (ball.x - ball.r < 0) { ball.x = ball.r; ball.vx *= -1; }
+  if (ball.x + ball.r > 400) { ball.x = 400 - ball.r; ball.vx *= -1; }
+  if (ball.y - ball.r < 0) { ball.y = ball.r; ball.vy *= -1; }
+
+  if (ball.y + ball.r > 500) { end('ゲームオーバー！'); return; }
+
+  if (ball.y + ball.r >= paddle.y && ball.y + ball.r <= paddle.y + PH &&
+      ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
+    ball.vy = -Math.abs(ball.vy);
+    let hit = (ball.x - (paddle.x + paddle.w/2)) / (paddle.w/2);
+    ball.vx = hit * 5;
+  }
+
+  for (let b of blocks) {
+    if (!b.alive) continue;
+    if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + BW &&
+        ball.y + ball.r > b.y && ball.y - ball.r < b.y + BH) {
+      b.alive = false;
+      ball.vy *= -1;
+      score++;
+      scoreEl.textContent = `スコア: ${score}`;
+    }
+  }
+
+  if (blocks.every(b => !b.alive)) end('クリア！');
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 400, 500);
+  ctx.fillStyle = '#4ecca3';
+  ctx.fillRect(paddle.x, paddle.y, paddle.w, PH);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2);
+  ctx.fill();
+  for (let b of blocks) {
+    if (!b.alive) continue;
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, BW, BH);
+  }
+}
+
+function end(msg) {
+  running = false;
+  messageEl.textContent = msg;
+  restartBtn.style.display = 'inline-block';
+}
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  paddle.x = Math.max(0, Math.min(400 - paddle.w, e.clientX - rect.left - paddle.w/2));
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') paddle.x = Math.max(0, paddle.x - 20);
+  if (e.key === 'ArrowRight') paddle.x = Math.min(400 - paddle.w, paddle.x + 20);
+  e.preventDefault();
+});
+
+init();
+</script>
+</body>
+</html>

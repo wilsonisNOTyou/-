@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>テトリス</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #eee; }
+  h1 { margin-bottom: 8px; font-size: 1.5rem; letter-spacing: 2px; }
+  #info { margin-bottom: 8px; font-size: 1rem; }
+  canvas { border: 2px solid #4ecca3; background: #0f0f23; }
+  #message { margin-top: 12px; color: #4ecca3; height: 1.5em; }
+  #restart { display: none; margin-top: 8px; padding: 8px 24px; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>TETRIS</h1>
+<div id="info">スコア: <span id="score">0</span> | レベル: <span id="level">1</span></div>
+<canvas id="canvas" width="200" height="400"></canvas>
+<div id="message">矢印キーで操作 / ↑で回転</div>
+<button id="restart" onclick="init()">もう一度</button>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const SZ = 20, COLS = 10, ROWS = 20;
+
+const PIECES = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[1,1,1],[0,1,0]],
+  [[1,1,1],[1,0,0]],
+  [[1,1,1],[0,0,1]],
+  [[1,1,0],[0,1,1]],
+  [[0,1,1],[1,1,0]],
+];
+const COLORS = ['#4d96ff','#ffd93d','#c77dff','#ff9f43','#4ecca3','#ff6b6b','#6bcb77'];
+
+let board, piece, score, level, lines, intervalId, running;
+
+function init() {
+  board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+  score = 0; level = 1; lines = 0; running = true;
+  document.getElementById('score').textContent = 0;
+  document.getElementById('level').textContent = 1;
+  document.getElementById('message').textContent = '矢印キーで操作 / ↑で回転';
+  document.getElementById('restart').style.display = 'none';
+  if (intervalId) clearInterval(intervalId);
+  spawn();
+  intervalId = setInterval(tick, 500);
+}
+
+function spawn() {
+  const idx = Math.floor(Math.random() * PIECES.length);
+  piece = {
+    shape: PIECES[idx].map(r => [...r]),
+    color: COLORS[idx],
+    x: Math.floor(COLS/2) - Math.floor(PIECES[idx][0].length/2),
+    y: 0,
+  };
+  if (collide()) { end(); }
+}
+
+function tick() { if (!move(0,1)) place(); }
+
+function move(dx, dy) {
+  piece.x += dx; piece.y += dy;
+  if (collide()) { piece.x -= dx; piece.y -= dy; return false; }
+  draw(); return true;
+}
+
+function rotate() {
+  const orig = piece.shape;
+  piece.shape = piece.shape[0].map((_, i) => piece.shape.map(r => r[i]).reverse());
+  if (collide()) piece.shape = orig;
+  draw();
+}
+
+function collide() {
+  for (let r = 0; r < piece.shape.length; r++)
+    for (let c = 0; c < piece.shape[r].length; c++)
+      if (piece.shape[r][c]) {
+        const nx = piece.x + c, ny = piece.y + r;
+        if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+        if (ny >= 0 && board[ny][nx]) return true;
+      }
+  return false;
+}
+
+function place() {
+  for (let r = 0; r < piece.shape.length; r++)
+    for (let c = 0; c < piece.shape[r].length; c++)
+      if (piece.shape[r][c] && piece.y + r >= 0)
+        board[piece.y + r][piece.x + c] = piece.color;
+  clearLines();
+  spawn();
+}
+
+function clearLines() {
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c)) {
+      board.splice(r, 1);
+      board.unshift(Array(COLS).fill(0));
+      cleared++; r++;
+    }
+  }
+  if (cleared) {
+    lines += cleared;
+    score += [0,100,300,500,800][cleared] * level;
+    level = Math.floor(lines / 10) + 1;
+    document.getElementById('score').textContent = score;
+    document.getElementById('level').textContent = level;
+    clearInterval(intervalId);
+    intervalId = setInterval(tick, Math.max(100, 500 - (level-1)*40));
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, 200, 400);
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c]) {
+        ctx.fillStyle = board[r][c];
+        ctx.fillRect(c*SZ+1, r*SZ+1, SZ-2, SZ-2);
+      }
+  if (piece)
+    for (let r = 0; r < piece.shape.length; r++)
+      for (let c = 0; c < piece.shape[r].length; c++)
+        if (piece.shape[r][c]) {
+          ctx.fillStyle = piece.color;
+          ctx.fillRect((piece.x+c)*SZ+1, (piece.y+r)*SZ+1, SZ-2, SZ-2);
+        }
+}
+
+function end() {
+  running = false;
+  clearInterval(intervalId);
+  document.getElementById('message').textContent = 'ゲームオーバー！';
+  document.getElementById('restart').style.display = 'inline-block';
+}
+
+document.addEventListener('keydown', e => {
+  if (!running) return;
+  if (e.key === 'ArrowLeft') move(-1, 0);
+  else if (e.key === 'ArrowRight') move(1, 0);
+  else if (e.key === 'ArrowDown') move(0, 1);
+  else if (e.key === 'ArrowUp') rotate();
+  else if (e.key === ' ') { while(move(0,1)); place(); }
+  else return;
+  e.preventDefault();
+});
+
+init();
+</script>
+</body>
+</html>

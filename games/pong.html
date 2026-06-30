@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ピンポン</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #eee; }
+  h1 { margin-bottom: 8px; font-size: 1.5rem; letter-spacing: 2px; }
+  canvas { border: 2px solid #4ecca3; background: #0f0f23; }
+  #message { margin-top: 14px; color: #4ecca3; height: 1.5em; font-size: 1rem; }
+  #restart { display: none; margin-top: 10px; padding: 8px 24px; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>PONG</h1>
+<canvas id="canvas" width="500" height="400"></canvas>
+<div id="message">W/Sキーで操作（あなた: 左）</div>
+<button id="restart" onclick="init()">もう一度</button>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = 500, H = 400, PW = 10, PH = 70, BR = 8, WIN = 7;
+
+let player, ai, ball, running, animId;
+
+function init() {
+  player = { x: 10, y: H/2 - PH/2, score: 0, dy: 0 };
+  ai = { x: W - 10 - PW, y: H/2 - PH/2, score: 0 };
+  ball = { x: W/2, y: H/2, vx: 4 * (Math.random() > 0.5 ? 1 : -1), vy: (Math.random()*3+2) * (Math.random()>0.5?1:-1) };
+  running = true;
+  document.getElementById('message').textContent = 'W/Sキーで操作（あなた: 左）';
+  document.getElementById('restart').style.display = 'none';
+  if (animId) cancelAnimationFrame(animId);
+  loop();
+}
+
+function loop() {
+  update();
+  draw();
+  if (running) animId = requestAnimationFrame(loop);
+}
+
+function update() {
+  player.y = Math.max(0, Math.min(H - PH, player.y + player.dy));
+
+  const aiCenter = ai.y + PH/2;
+  if (aiCenter < ball.y - 5) ai.y = Math.min(H - PH, ai.y + 4);
+  else if (aiCenter > ball.y + 5) ai.y = Math.max(0, ai.y - 4);
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  if (ball.y - BR < 0) { ball.y = BR; ball.vy *= -1; }
+  if (ball.y + BR > H) { ball.y = H - BR; ball.vy *= -1; }
+
+  if (ball.x - BR < player.x + PW && ball.y > player.y && ball.y < player.y + PH && ball.vx < 0) {
+    ball.vx = Math.abs(ball.vx) * 1.05;
+    ball.vy += (ball.y - (player.y + PH/2)) * 0.1;
+  }
+  if (ball.x + BR > ai.x && ball.y > ai.y && ball.y < ai.y + PH && ball.vx > 0) {
+    ball.vx = -Math.abs(ball.vx) * 1.05;
+    ball.vy += (ball.y - (ai.y + PH/2)) * 0.1;
+  }
+
+  if (ball.x < 0) { ai.score++; reset(); }
+  if (ball.x > W) { player.score++; reset(); }
+
+  if (player.score >= WIN) end('あなたの勝ち！');
+  else if (ai.score >= WIN) end('AIの勝ち！');
+}
+
+function reset() {
+  ball = { x: W/2, y: H/2, vx: 4*(Math.random()>0.5?1:-1), vy: (Math.random()*3+2)*(Math.random()>0.5?1:-1) };
+}
+
+function draw() {
+  ctx.fillStyle = '#0f0f23';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.setLineDash([10, 10]);
+  ctx.strokeStyle = '#333';
+  ctx.beginPath(); ctx.moveTo(W/2, 0); ctx.lineTo(W/2, H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(player.score, W/4, 40);
+  ctx.fillText(ai.score, 3*W/4, 40);
+
+  ctx.fillStyle = '#4ecca3';
+  ctx.fillRect(player.x, player.y, PW, PH);
+  ctx.fillStyle = '#ff6b6b';
+  ctx.fillRect(ai.x, ai.y, PW, PH);
+
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, BR, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function end(msg) {
+  running = false;
+  document.getElementById('message').textContent = msg;
+  document.getElementById('restart').style.display = 'inline-block';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'w' || e.key === 'W') player.dy = -6;
+  if (e.key === 's' || e.key === 'S') player.dy = 6;
+});
+document.addEventListener('keyup', e => {
+  if (['w','W','s','S'].includes(e.key)) player.dy = 0;
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  player.y = e.clientY - rect.top - PH/2;
+});
+
+init();
+</script>
+</body>
+</html>

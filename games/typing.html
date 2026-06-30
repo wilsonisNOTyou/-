@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>タイピングゲーム</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #eee; }
+  h1 { margin-bottom: 16px; font-size: 1.5rem; letter-spacing: 2px; }
+  #stats { display: flex; gap: 30px; margin-bottom: 20px; font-size: 1rem; }
+  #stats span { color: #4ecca3; font-weight: bold; }
+  #word-display { font-size: 2.5rem; font-weight: bold; letter-spacing: 4px; margin-bottom: 20px; height: 3rem; }
+  .char.correct { color: #4ecca3; }
+  .char.wrong { color: #ff6b6b; background: rgba(255,107,107,0.2); border-radius: 2px; }
+  .char.pending { color: #666; }
+  .char.current { color: #eee; border-bottom: 2px solid #4ecca3; }
+  #input { font-size: 1.4rem; padding: 10px 18px; background: #0f0f23; border: 2px solid #4ecca3; border-radius: 6px; color: #eee; outline: none; width: 300px; text-align: center; }
+  #input:focus { border-color: #6bcb77; }
+  #timer-bar-bg { width: 400px; height: 12px; background: #2a2a4a; border-radius: 6px; margin-top: 20px; overflow: hidden; }
+  #timer-bar { height: 100%; background: #4ecca3; border-radius: 6px; transition: width 0.1s linear, background 0.3s; }
+  #message { margin-top: 16px; color: #4ecca3; height: 1.5em; font-size: 1rem; }
+  #restart { display: none; margin-top: 10px; padding: 8px 24px; background: #4ecca3; color: #1a1a2e; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>TYPING</h1>
+<div id="stats">
+  スコア: <span id="score">0</span> &nbsp;|&nbsp;
+  正確率: <span id="accuracy">100</span>% &nbsp;|&nbsp;
+  WPM: <span id="wpm">0</span>
+</div>
+<div id="word-display"></div>
+<input id="input" type="text" placeholder="ここに入力" autocomplete="off" spellcheck="false">
+<div id="timer-bar-bg"><div id="timer-bar"></div></div>
+<div id="message">入力を始めるとスタート！</div>
+<button id="restart" onclick="init()">もう一度</button>
+<script>
+const WORDS = [
+  'apple','brave','cloud','dance','eagle','flame','grace','heart','ivory','juice',
+  'knife','lemon','magic','night','ocean','piano','queen','river','stone','tiger',
+  'ultra','voice','water','xerox','yacht','zebra','alpha','bravo','chess','delta',
+  'earth','frost','globe','happy','input','japan','karma','laser','music','novel',
+  'orbit','phase','quest','radio','smile','table','under','vivid','wrist','xenon',
+];
+
+const TIME = 30;
+let currentWord, typed, score, wrong, started, startTime, timerInterval, timeLeft;
+
+function init() {
+  score = 0; wrong = 0; started = false; timeLeft = TIME;
+  document.getElementById('score').textContent = 0;
+  document.getElementById('accuracy').textContent = 100;
+  document.getElementById('wpm').textContent = 0;
+  document.getElementById('message').textContent = '入力を始めるとスタート！';
+  document.getElementById('restart').style.display = 'none';
+  document.getElementById('timer-bar').style.width = '100%';
+  document.getElementById('timer-bar').style.background = '#4ecca3';
+  document.getElementById('input').value = '';
+  document.getElementById('input').disabled = false;
+  document.getElementById('input').focus();
+  if (timerInterval) clearInterval(timerInterval);
+  nextWord();
+}
+
+function nextWord() {
+  currentWord = WORDS[Math.floor(Math.random() * WORDS.length)];
+  typed = '';
+  renderWord();
+}
+
+function renderWord() {
+  const display = document.getElementById('word-display');
+  display.innerHTML = currentWord.split('').map((ch, i) => {
+    let cls = 'pending';
+    if (i < typed.length) cls = typed[i] === ch ? 'correct' : 'wrong';
+    else if (i === typed.length) cls = 'current';
+    return `<span class="char ${cls}">${ch}</span>`;
+  }).join('');
+}
+
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    timeLeft = TIME - Math.floor((Date.now() - startTime) / 1000);
+    const pct = (timeLeft / TIME) * 100;
+    document.getElementById('timer-bar').style.width = pct + '%';
+    document.getElementById('timer-bar').style.background = timeLeft <= 5 ? '#ff6b6b' : timeLeft <= 10 ? '#ffd93d' : '#4ecca3';
+    const elapsed = (Date.now() - startTime) / 60000;
+    document.getElementById('wpm').textContent = elapsed > 0 ? Math.round(score / elapsed) : 0;
+    if (timeLeft <= 0) end();
+  }, 100);
+}
+
+function end() {
+  clearInterval(timerInterval);
+  document.getElementById('input').disabled = true;
+  document.getElementById('timer-bar').style.width = '0%';
+  const total = score + wrong;
+  const acc = total > 0 ? Math.round(score / total * 100) : 100;
+  document.getElementById('message').textContent = `終了！スコア: ${score} / 正確率: ${acc}%`;
+  document.getElementById('restart').style.display = 'inline-block';
+}
+
+document.getElementById('input').addEventListener('input', e => {
+  if (!started) { started = true; startTimer(); }
+  typed = e.target.value;
+  renderWord();
+
+  if (typed === currentWord) {
+    score++;
+    document.getElementById('score').textContent = score;
+    e.target.value = '';
+    typed = '';
+    nextWord();
+  } else if (typed.length > currentWord.length || (typed.length === currentWord.length && typed !== currentWord)) {
+    wrong++;
+    const total = score + wrong;
+    document.getElementById('accuracy').textContent = Math.round(score / total * 100);
+  }
+});
+
+init();
+</script>
+</body>
+</html>
